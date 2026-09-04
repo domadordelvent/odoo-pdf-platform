@@ -80,145 +80,133 @@ class PdfJob(models.Model):
         string="Watermark Text",
     )
 
-#Barreja els dos documents, canvia l'estat a processing, crea el nou document
-#i canvia l'estat a done
+
     def action_process(self):
+        operation_methods = {
+            "merge": "_process_merge",
+            "split": "_process_split",
+            "rotate": "_process_rotate",
+            "extract": "_process_extract",
+            "reorder": "_process_reorder",
+            "watermark": "_process_watermark",
+        }
+
         for job in self:
-            if job.operation == "merge":
-                pdf_files = [
-                    base64.b64decode(att.datas)
-                    for att in job.input_attachment_ids
-                ]
+            method_name = operation_methods.get(job.operation)
+            if method_name:
+                getattr(job, method_name)()
 
-                merged_pdf = merge_pdfs(pdf_files)
+    def _create_output_attachment(self, name, data):
+        return self.env["ir.attachment"].create({
+            "name": name,
+            "type": "binary",
+            "datas": base64.b64encode(data),
+            "mimetype": "application/pdf",
+            "res_model": "pdf.job",
+            "res_id": self.id,
+        })
 
-                attachment = self.env["ir.attachment"].create({
-                    "name": f"{job.name}_merged.pdf",
-                    "type": "binary",
-                    "datas": base64.b64encode(merged_pdf),
-                    "mimetype": "application/pdf",
-                    "res_model": "pdf.job",
-                    "res_id": job.id,
-                })
+    def _process_merge(self):
+        if len(self.input_attachment_ids) < 2:
+            raise UserError("Merge requires at least two PDFs.")
+        pdf_files = [
+            base64.b64decode(att.datas)
+            for att in self.input_attachment_ids
+        ]
+        merged_pdf = merge_pdfs(pdf_files)
+        attachment = self._create_output_attachment(
+            f"{self.name}_merged.pdf",
+            merged_pdf,
+        )
 
-                job.output_attachment_ids = [(6, 0, [attachment.id])]
+        self.output_attachment_ids = [(6, 0, [attachment.id])]
 
-            elif job.operation == "split":
-                if len(job.input_attachment_ids) != 1:
-                    raise UserError("Split requires exactly one PDF.")
+    def _process_split(self):
+        if len(self.input_attachment_ids) != 1:
+            raise UserError("Split requires exactly one PDF.")
 
-                source = base64.b64decode(job.input_attachment_ids[0].datas)
+        source = base64.b64decode(self.input_attachment_ids[0].datas)
+        pages = split_pdf(source)
+        attachment_ids = []
 
-                pages = split_pdf(source)
+        for page in pages:
+            attachment = self._create_output_attachment(
+                f"{self.name}_page_{page['page']}.pdf",
+                page["data"],
+            )
+            attachment_ids.append(attachment.id)
 
-                attachment_ids = []
+        self.output_attachment_ids = [(6, 0, attachment_ids)]
 
-                for page in pages:
-                    attachment = self.env["ir.attachment"].create({
-                        "name": f"{job.name}_page_{page['page']}.pdf",
-                        "type": "binary",
-                        "datas": base64.b64encode(page["data"]),
-                        "mimetype": "application/pdf",
-                        "res_model": "pdf.job",
-                        "res_id": job.id,
-                    })
+    def _process_rotate(self):
+        if len(self.input_attachment_ids) != 1:
+            raise UserError("Rotate requires exactly one PDF.")
 
-                    attachment_ids.append(attachment.id)
+        source = base64.b64decode(self.input_attachment_ids[0].datas)
+        rotated_pdf = rotate_pdf(
+            source,
+            int(self.rotation_angle),
+        )
+        attachment = self._create_output_attachment(
+            f"{self.name}_rotated.pdf",
+            rotated_pdf,
+        )
 
-                job.output_attachment_ids = [(6, 0, attachment_ids)]
-            elif job.operation == "rotate":
-                if len(job.input_attachment_ids) != 1:
-                    raise UserError("Rotate requires exactly one PDF.")
+        self.output_attachment_ids = [(6, 0, [attachment.id])]
 
-                source = base64.b64decode(job.input_attachment_ids[0].datas)
+    def _process_extract(self):
+        if len(self.input_attachment_ids) != 1:
+            raise UserError("Extract requires exactly one PDF.")
 
-                rotated_pdf = rotate_pdf(
-                    source,
-                    int(job.rotation_angle),
-                )
+        if not self.page_selection:
+            raise UserError("Enter the pages to extract.")
 
-                attachment = self.env["ir.attachment"].create({
-                    "name": f"{job.name}_rotated.pdf",
-                    "type": "binary",
-                    "datas": base64.b64encode(rotated_pdf),
-                    "mimetype": "application/pdf",
-                    "res_model": "pdf.job",
-                    "res_id": job.id,
-                })
+        source = base64.b64decode(self.input_attachment_ids[0].datas)
+        extracted_pdf = extract_pages(
+            source,
+            self.page_selection,
+        )
+        attachment = self._create_output_attachment(
+            f"{self.name}_extracted.pdf",
+            extracted_pdf,
+        )
 
-                job.output_attachment_ids = [(6, 0, [attachment.id])]
-            elif job.operation == "extract":
-                if len(job.input_attachment_ids) != 1:
-                    raise UserError("Extract requires exactly one PDF.")
+        self.output_attachment_ids = [(6, 0, [attachment.id])]
 
-                if not job.page_selection:
-                    raise UserError("Enter the pages to extract.")
+    def _process_reorder(self):
+        if len(self.input_attachment_ids) != 1:
+            raise UserError("Reorder requires exactly one PDF.")
 
-                source = base64.b64decode(job.input_attachment_ids[0].datas)
+        if not self.page_selection:
+            raise UserError("Enter the pages to reorder.")
 
-                extracted_pdf = extract_pages(
-                    source,
-                    job.page_selection,
-                )
+        source = base64.b64decode(self.input_attachment_ids[0].datas)
+        extracted_pdf = reorder_pages(
+            source,
+            self.page_selection,
+        )
+        attachment = self._create_output_attachment(
+            f"{self.name}_extracted.pdf",
+            extracted_pdf,
+        )
 
-                attachment = self.env["ir.attachment"].create({
-                    "name": f"{job.name}_extracted.pdf",
-                    "type": "binary",
-                    "datas": base64.b64encode(extracted_pdf),
-                    "mimetype": "application/pdf",
-                    "res_model": "pdf.job",
-                    "res_id": job.id,
-                })
+        self.output_attachment_ids = [(6, 0, [attachment.id])]
 
-                job.output_attachment_ids = [(6, 0, [attachment.id])]
+    def _process_watermark(self):
+        if len(self.input_attachment_ids) != 1:
+            raise UserError("Watermark requires exactly one PDF.")
 
-            elif job.operation == "reorder":
-                if len(job.input_attachment_ids) != 1:
-                    raise UserError("Reorder requires exactly one PDF.")
+        if not self.watermark_text:
+            raise UserError("Enter the watermark text.")
 
-                if not job.page_selection:
-                    raise UserError("Enter the pages to reorder.")
+        source = base64.b64decode(self.input_attachment_ids[0].datas)
+        watermarked_pdf = add_watermark(
+            source,
+            self.watermark_text,
+        )
+        attachment = self._create_output_attachment(
+            f"{self.name}_watermarked.pdf",
+            watermarked_pdf,
+        )
 
-                source = base64.b64decode(job.input_attachment_ids[0].datas)
-
-                extracted_pdf = reorder_pages(
-                    source,
-                    job.page_selection,
-                )
-
-                attachment = self.env["ir.attachment"].create({
-                    "name": f"{job.name}_extracted.pdf",
-                    "type": "binary",
-                    "datas": base64.b64encode(extracted_pdf),
-                    "mimetype": "application/pdf",
-                    "res_model": "pdf.job",
-                    "res_id": job.id,
-                })
-
-                job.output_attachment_ids = [(6, 0, [attachment.id])]
-            elif job.operation == "watermark":
-                if len(job.input_attachment_ids) != 1:
-                    raise UserError("Watermark requires exactly one PDF.")
-
-                if not job.watermark_text:
-                    raise UserError("Enter the watermark text.")
-
-                source = base64.b64decode(
-                    job.input_attachment_ids[0].datas
-                )
-
-                watermarked_pdf = add_watermark(
-                    source,
-                    job.watermark_text,
-                )
-
-                attachment = self.env["ir.attachment"].create({
-                    "name": f"{job.name}_watermarked.pdf",
-                    "type": "binary",
-                    "datas": base64.b64encode(watermarked_pdf),
-                    "mimetype": "application/pdf",
-                    "res_model": "pdf.job",
-                    "res_id": job.id,
-                })
-
-                job.output_attachment_ids = [(6, 0, [attachment.id])]
+        self.output_attachment_ids = [(6, 0, [attachment.id])]
