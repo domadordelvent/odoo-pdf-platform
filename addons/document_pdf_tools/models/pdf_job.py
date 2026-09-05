@@ -104,9 +104,22 @@ class PdfJob(models.Model):
         }
 
         for job in self:
-            method_name = operation_methods.get(job.operation)
-            if method_name:
-                getattr(job, method_name)()
+            job.write({
+                "state": "processing",
+                "error_message": False,
+            })
+
+            try:
+                method_name = operation_methods.get(job.operation)
+                if method_name:
+                    getattr(job, method_name)()
+            except Exception as error:
+                job.write({
+                    "state": "failed",
+                    "error_message": str(error) or type(error).__name__,
+                })
+            else:
+                job.state = "done"
 
     def _create_output_attachment(self, name, data):
         return self.env["ir.attachment"].create({
