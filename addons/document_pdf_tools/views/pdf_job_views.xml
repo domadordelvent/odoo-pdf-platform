@@ -39,6 +39,10 @@
                         <field name="operation"/>
                         <field name="state"/>
                         <field name="rotation_angle" invisible="operation != 'rotate'"/>
+                        <field
+                            name="compression_level"
+                            invisible="operation != 'compress'"
+                        />
                         <field name="error_message"/>
                         <field name="input_attachment_ids" widget="many2many_binary"/>
                         <field name="output_attachment_ids" widget="many2many_binary"/>

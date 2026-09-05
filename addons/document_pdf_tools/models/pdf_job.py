@@ -5,6 +5,7 @@ from odoo.exceptions import UserError
 
 from pdf_engine.extractor import extract_pages
 
+from pdf_engine.compressor import compress_pdf
 from pdf_engine.merger import merge_pdfs
 from pdf_engine.splitter import split_pdf
 from pdf_engine.rotator import rotate_pdf
@@ -26,6 +27,7 @@ class PdfJob(models.Model):
             ("reorder", "Reorder"),
             ("extract", "Extract Pages"),
             ("watermark", "Watermark"),
+            ("compress", "Compress"),
         ],
         required=True,
     )
@@ -80,6 +82,15 @@ class PdfJob(models.Model):
         string="Watermark Text",
     )
 
+    compression_level = fields.Selection(
+        [
+            ("low", "Low"),
+            ("medium", "Medium"),
+            ("high", "High"),
+        ],
+        string="Compression Level",
+        default="medium",
+    )
 
     def action_process(self):
         operation_methods = {
@@ -89,6 +100,7 @@ class PdfJob(models.Model):
             "extract": "_process_extract",
             "reorder": "_process_reorder",
             "watermark": "_process_watermark",
+            "compress": "_process_compress",
         }
 
         for job in self:
@@ -207,6 +219,22 @@ class PdfJob(models.Model):
         attachment = self._create_output_attachment(
             f"{self.name}_watermarked.pdf",
             watermarked_pdf,
+        )
+
+        self.output_attachment_ids = [(6, 0, [attachment.id])]
+
+    def _process_compress(self):
+        if len(self.input_attachment_ids) != 1:
+            raise UserError("Compress requires exactly one PDF.")
+
+        source = base64.b64decode(self.input_attachment_ids[0].datas)
+        compressed_pdf = compress_pdf(
+            source,
+            self.compression_level,
+        )
+        attachment = self._create_output_attachment(
+            f"{self.name}_compressed.pdf",
+            compressed_pdf,
         )
 
         self.output_attachment_ids = [(6, 0, [attachment.id])]
