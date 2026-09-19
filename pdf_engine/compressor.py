@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 
 from .exceptions import PdfEngineError
+from pdf_engine.validator import validate_pdf
 
 
 COMPRESSION_PROFILES = {
@@ -16,6 +17,8 @@ def compress_pdf(pdf_bytes, level):
     profile = COMPRESSION_PROFILES.get(level)
     if not profile:
         raise PdfEngineError(f"Unsupported compression level: {level}")
+
+    validate_pdf(pdf_bytes)
 
     with tempfile.TemporaryDirectory() as temporary_directory:
         input_path = Path(temporary_directory) / "input.pdf"

@@ -71,6 +71,7 @@ class PdfJob(models.Model):
         ],
         string="Rotation",
         default="90",
+        required=True,
     )
 
     page_selection = fields.Char(
@@ -90,6 +91,7 @@ class PdfJob(models.Model):
         ],
         string="Compression Level",
         default="medium",
+        required=True,
     )
 
     def action_process(self):
@@ -111,8 +113,9 @@ class PdfJob(models.Model):
 
             try:
                 method_name = operation_methods.get(job.operation)
-                if method_name:
-                    getattr(job, method_name)()
+                if not method_name:
+                    raise UserError(f"No processor available for operation: {job.operation}")
+                getattr(job, method_name)()
             except Exception as error:
                 job.write({
                     "state": "failed",
@@ -211,7 +214,7 @@ class PdfJob(models.Model):
             self.page_selection,
         )
         attachment = self._create_output_attachment(
-            f"{self.name}_extracted.pdf",
+            f"{self.name}_reordered.pdf",
             extracted_pdf,
         )
 

@@ -1,9 +1,11 @@
 from io import BytesIO
-from pypdf import PdfReader, PdfWriter
+from pypdf import PdfWriter
+
+from pdf_engine.validator import validate_pdf
 
 
 def split_pdf(pdf_file):
-    reader = PdfReader(BytesIO(pdf_file))
+    reader = validate_pdf(pdf_file)
     outputs = []
 
     for index, page in enumerate(reader.pages, start=1):
