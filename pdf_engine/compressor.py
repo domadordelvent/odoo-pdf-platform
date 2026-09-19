@@ -1,6 +1,9 @@
 import subprocess
 import tempfile
+from io import BytesIO
 from pathlib import Path
+
+from pypdf import PdfWriter
 
 from .exceptions import PdfEngineError
 from pdf_engine.validator import validate_pdf
@@ -18,7 +21,14 @@ def compress_pdf(pdf_bytes, level):
     if not profile:
         raise PdfEngineError(f"Unsupported compression level: {level}")
 
-    validate_pdf(pdf_bytes)
+    reader = validate_pdf(pdf_bytes)
+    if reader.is_encrypted:
+        # Validation unlocked the reader; serialize without encryption for gs.
+        writer = PdfWriter()
+        writer.clone_document_from_reader(reader)
+        decrypted = BytesIO()
+        writer.write(decrypted)
+        pdf_bytes = decrypted.getvalue()
 
     with tempfile.TemporaryDirectory() as temporary_directory:
         input_path = Path(temporary_directory) / "input.pdf"
@@ -63,4 +73,6 @@ def compress_pdf(pdf_bytes, level):
                 "Ghostscript compression failed: no output PDF was created."
             )
 
-        return output_path.read_bytes()
+        compressed_pdf = output_path.read_bytes()
+        validate_pdf(compressed_pdf)
+        return compressed_pdf

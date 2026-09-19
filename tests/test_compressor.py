@@ -4,7 +4,8 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
 
 from pdf_engine.compressor import compress_pdf
 from pdf_engine.exceptions import PdfEngineError
@@ -29,17 +30,53 @@ class CompressPdfTests(unittest.TestCase):
                     [300, 300, 300],
                 )
 
-    def test_empty_password_input_is_passed_unchanged_to_ghostscript(self):
-        source = make_pdf([72, 144], password="")
-        expected_output = make_pdf([72, 144])
+    def test_empty_password_pdf_preserves_visible_text_with_real_ghostscript(self):
+        source = BytesIO()
+        pdf = canvas.Canvas(source, pagesize=(300, 400))
+        texts = ("First page original content", "Second page original content")
+        for text in texts:
+            pdf.drawString(30, 200, text)
+            pdf.showPage()
+        pdf.save()
+        writer = PdfWriter()
+        writer.clone_document_from_reader(PdfReader(BytesIO(source.getvalue())))
+        writer.encrypt("")
+        encrypted = BytesIO()
+        writer.write(encrypted)
+        self.assertTrue(PdfReader(BytesIO(encrypted.getvalue())).is_encrypted)
 
-        def run(command, **kwargs):
-            self.assertEqual(Path(command[-1]).read_bytes(), source)
-            Path(command[-2].split("=", 1)[1]).write_bytes(expected_output)
+        for level in ("low", "medium", "high"):
+            with self.subTest(level=level):
+                result = compress_pdf(encrypted.getvalue(), level)
 
-        with patch("pdf_engine.compressor.subprocess.run", side_effect=run) as mocked_run:
-            self.assertEqual(compress_pdf(source, "medium"), expected_output)
-            mocked_run.assert_called_once()
+                reader = PdfReader(BytesIO(result))
+                self.assertFalse(reader.is_encrypted)
+                self.assertEqual(len(reader.pages), 2)
+                for page, text in zip(reader.pages, texts):
+                    self.assertEqual(page.extract_text().strip(), text)
+                    self.assertEqual(float(page.mediabox.width), 300)
+                    self.assertEqual(float(page.mediabox.height), 400)
+
+    def test_invalid_ghostscript_output_is_rejected(self):
+        invalid_outputs = {
+            "empty": b"",
+            "non_pdf": b"not a PDF",
+            "truncated": make_pdf()[:32],
+            "zero_pages": make_pdf([]),
+        }
+        for name, output in invalid_outputs.items():
+            with self.subTest(output=name):
+                paths = []
+
+                def run(command, **kwargs):
+                    output_path = Path(command[-2].split("=", 1)[1])
+                    paths.append(output_path)
+                    output_path.write_bytes(output)
+
+                with patch("pdf_engine.compressor.subprocess.run", side_effect=run):
+                    with self.assertRaises(PdfEngineError):
+                        compress_pdf(make_pdf(), "medium")
+                self.assertTrue(all(not path.exists() for path in paths))
 
     def test_unsupported_level_is_rejected_before_pdf_validation(self):
         for level in ("invalid", "", None):
