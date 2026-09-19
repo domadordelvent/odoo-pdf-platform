@@ -94,6 +94,11 @@ class PdfJob(models.Model):
         required=True,
     )
 
+    def action_reset_to_draft(self):
+        if any(job.state != "failed" for job in self):
+            raise UserError("Only failed jobs can be reset to draft.")
+        self.write({"state": "draft", "error_message": False})
+
     def action_process(self):
         operation_methods = {
             "merge": "_process_merge",

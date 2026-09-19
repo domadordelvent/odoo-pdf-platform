@@ -27,6 +27,13 @@
                         invisible="state != 'draft'"
                     />
 
+                    <button
+                        name="action_reset_to_draft"
+                        type="object"
+                        string="Reset to Draft"
+                        invisible="state != 'failed'"
+                    />
+
                     <field
                         name="state"
                         widget="statusbar"
