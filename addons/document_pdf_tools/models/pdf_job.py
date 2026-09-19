@@ -106,23 +106,22 @@ class PdfJob(models.Model):
         }
 
         for job in self:
-            job.write({
-                "state": "processing",
-                "error_message": False,
-            })
-
             try:
-                method_name = operation_methods.get(job.operation)
-                if not method_name:
-                    raise UserError(f"No processor available for operation: {job.operation}")
-                getattr(job, method_name)()
+                with self.env.cr.savepoint():
+                    job.write({
+                        "state": "processing",
+                        "error_message": False,
+                    })
+                    method_name = operation_methods.get(job.operation)
+                    if not method_name:
+                        raise UserError(f"No processor available for operation: {job.operation}")
+                    getattr(job, method_name)()
+                    job.state = "done"
             except Exception as error:
                 job.write({
                     "state": "failed",
                     "error_message": str(error) or type(error).__name__,
                 })
-            else:
-                job.state = "done"
 
     def _create_output_attachment(self, name, data):
         return self.env["ir.attachment"].create({

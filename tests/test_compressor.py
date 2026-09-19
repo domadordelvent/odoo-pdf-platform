@@ -38,8 +38,10 @@ class CompressPdfTests(unittest.TestCase):
             pdf.drawString(30, 200, text)
             pdf.showPage()
         pdf.save()
+        reader = PdfReader(BytesIO(source.getvalue()))
         writer = PdfWriter()
-        writer.clone_document_from_reader(PdfReader(BytesIO(source.getvalue())))
+        for page in reader.pages:
+            writer.add_page(page)
         writer.encrypt("")
         encrypted = BytesIO()
         writer.write(encrypted)
