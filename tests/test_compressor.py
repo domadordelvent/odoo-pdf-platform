@@ -7,7 +7,7 @@ from unittest.mock import patch
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 
-from pdf_engine.compressor import compress_pdf
+from pdf_engine.compressor import GHOSTSCRIPT_TIMEOUT_SECONDS, compress_pdf
 from pdf_engine.exceptions import PdfEngineError
 from tests.pdf_helpers import make_pdf
 
@@ -122,11 +122,60 @@ class CompressPdfTests(unittest.TestCase):
                         "gs", "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4",
                         f"-dPDFSETTINGS={profile}", "-dNOPAUSE", "-dQUIET", "-dBATCH",
                     ])
-                    self.assertEqual(kwargs, dict(check=True, capture_output=True, text=True))
+                    self.assertEqual(kwargs, dict(check=True, capture_output=True, text=True, timeout=GHOSTSCRIPT_TIMEOUT_SECONDS))
                     output_path.write_bytes(expected_output)
 
                 with patch("pdf_engine.compressor.subprocess.run", side_effect=run):
                     self.assertEqual(compress_pdf(source, level), expected_output)
+                self.assertTrue(all(not path.exists() for path in paths))
+
+    def test_timeout_raises_engine_error_and_cleans_temporary_files(self):
+        paths = []
+        cause = subprocess.TimeoutExpired("gs", GHOSTSCRIPT_TIMEOUT_SECONDS)
+
+        def run(command, **kwargs):
+            self.assertEqual(kwargs["timeout"], GHOSTSCRIPT_TIMEOUT_SECONDS)
+            input_path = Path(command[-1])
+            output_path = Path(command[-2].split("=", 1)[1])
+            self.assertTrue(input_path.is_file())
+            output_path.write_bytes(b"partial output")
+            paths.extend([input_path, output_path, input_path.parent])
+            raise cause
+
+        with patch("pdf_engine.compressor.subprocess.run", side_effect=run):
+            with self.assertRaises(PdfEngineError) as error:
+                compress_pdf(make_pdf(), "medium")
+        self.assertEqual(
+            str(error.exception),
+            f"Ghostscript compression timed out after {GHOSTSCRIPT_TIMEOUT_SECONDS} seconds.",
+        )
+        self.assertIs(error.exception.__cause__, cause)
+        self.assertEqual(len(paths), 3)
+        self.assertTrue(all(not path.exists() for path in paths))
+
+    def test_subprocess_failures_clean_temporary_files(self):
+        causes = (
+            FileNotFoundError("gs"),
+            subprocess.CalledProcessError(1, "gs", output="", stderr="Failed"),
+        )
+        for cause in causes:
+            with self.subTest(error=type(cause).__name__):
+                paths = []
+
+                def run(command, **kwargs):
+                    input_path = Path(command[-1])
+                    output_path = Path(command[-2].split("=", 1)[1])
+                    self.assertTrue(input_path.is_file())
+                    if isinstance(cause, subprocess.CalledProcessError):
+                        output_path.write_bytes(b"partial output")
+                    paths.extend([input_path, output_path, input_path.parent])
+                    raise cause
+
+                with patch("pdf_engine.compressor.subprocess.run", side_effect=run):
+                    with self.assertRaises(PdfEngineError) as error:
+                        compress_pdf(make_pdf(), "medium")
+                self.assertIs(error.exception.__cause__, cause)
+                self.assertEqual(len(paths), 3)
                 self.assertTrue(all(not path.exists() for path in paths))
 
     def test_missing_ghostscript_preserves_error(self):

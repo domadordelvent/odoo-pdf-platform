@@ -9,6 +9,9 @@ from .exceptions import PdfEngineError
 from pdf_engine.validator import validate_pdf
 
 
+GHOSTSCRIPT_TIMEOUT_SECONDS = 60
+
+
 COMPRESSION_PROFILES = {
     "low": "/printer",
     "medium": "/ebook",
@@ -53,7 +56,12 @@ def compress_pdf(pdf_bytes, level):
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=GHOSTSCRIPT_TIMEOUT_SECONDS,
             )
+        except subprocess.TimeoutExpired as error:
+            raise PdfEngineError(
+                f"Ghostscript compression timed out after {GHOSTSCRIPT_TIMEOUT_SECONDS} seconds."
+            ) from error
         except FileNotFoundError as error:
             raise PdfEngineError(
                 "Ghostscript executable was not found."
