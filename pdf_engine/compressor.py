@@ -51,7 +51,7 @@ def compress_pdf(pdf_bytes, level):
         ]
 
         try:
-            subprocess.run(
+            result = subprocess.run(
                 command,
                 check=True,
                 capture_output=True,
@@ -75,6 +75,13 @@ def compress_pdf(pdf_bytes, level):
             raise PdfEngineError(
                 f"Ghostscript compression failed: {details}"
             ) from error
+
+        # Ghostscript can report a failed page while exiting successfully.
+        diagnostics = "\n".join((result.stdout, result.stderr)).strip()
+        if "page drawing error" in diagnostics.casefold():
+            raise PdfEngineError(
+                f"Ghostscript compression failed: {diagnostics}"
+            )
 
         if not output_path.is_file():
             raise PdfEngineError(

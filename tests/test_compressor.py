@@ -5,11 +5,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pypdf import PdfReader, PdfWriter
+from pypdf.generic import DecodedStreamObject, NameObject
 from reportlab.pdfgen import canvas
 
 from pdf_engine.compressor import GHOSTSCRIPT_TIMEOUT_SECONDS, compress_pdf
 from pdf_engine.exceptions import PdfEngineError
 from tests.pdf_helpers import make_pdf
+from pdf_engine.validator import validate_pdf
 
 
 class CompressPdfTests(unittest.TestCase):
@@ -59,6 +61,63 @@ class CompressPdfTests(unittest.TestCase):
                     self.assertEqual(float(page.mediabox.width), 300)
                     self.assertEqual(float(page.mediabox.height), 400)
 
+    def test_page_drawing_error_with_real_ghostscript_is_rejected(self):
+        writer = PdfWriter()
+        page = writer.add_blank_page(width=300, height=400)
+        content = DecodedStreamObject()
+        # An unresolved image draw produces a blank PDF with exit status zero.
+        content.set_data(b"q 100 0 0 100 30 30 cm /MissingImage Do")
+        page[NameObject("/Contents")] = writer._add_object(content)
+        source = BytesIO()
+        writer.write(source)
+        validate_pdf(source.getvalue())
+        real_run = subprocess.run
+
+        for level in ("low", "medium", "high"):
+            with self.subTest(level=level):
+                paths = []
+
+                def run(command, **kwargs):
+                    result = real_run(command, **kwargs)
+                    self.assertEqual(result.returncode, 0)
+                    self.assertIn("Page drawing error", result.stdout + result.stderr)
+                    output_path = Path(command[-2].split("=", 1)[1])
+                    paths.extend([Path(command[-1]), output_path, output_path.parent])
+                    reader = validate_pdf(output_path.read_bytes())
+                    self.assertEqual(len(reader.pages), 1)
+                    self.assertEqual(reader.pages[0].extract_text(), "")
+                    self.assertFalse(reader.pages[0].images)
+                    return result
+
+                with patch("pdf_engine.compressor.subprocess.run", side_effect=run):
+                    with self.assertRaisesRegex(PdfEngineError, "Page drawing error"):
+                        compress_pdf(source.getvalue(), level)
+                self.assertTrue(all(not path.exists() for path in paths))
+
+    def test_page_drawing_diagnostics_are_rejected_on_either_stream(self):
+        diagnostic = "   **** Error: Page drawing error occurred.\nOutput may be incorrect."
+        for stdout, stderr in ((diagnostic, ""), ("", diagnostic)):
+            with self.subTest(stdout=stdout, stderr=stderr):
+                def run(command, **kwargs):
+                    Path(command[-2].split("=", 1)[1]).write_bytes(make_pdf())
+                    return subprocess.CompletedProcess(command, 0, stdout, stderr)
+
+                with patch("pdf_engine.compressor.subprocess.run", side_effect=run):
+                    with self.assertRaisesRegex(PdfEngineError, "Page drawing error"):
+                        compress_pdf(make_pdf(), "medium")
+
+    def test_harmless_ghostscript_warnings_are_accepted(self):
+        expected = make_pdf()
+        warning = "Warning: substituting font Helvetica.\nThe file was repaired."
+        for stdout, stderr in ((warning, ""), ("", warning), ("", "")):
+            with self.subTest(stdout=stdout, stderr=stderr):
+                def run(command, **kwargs):
+                    Path(command[-2].split("=", 1)[1]).write_bytes(expected)
+                    return subprocess.CompletedProcess(command, 0, stdout, stderr)
+
+                with patch("pdf_engine.compressor.subprocess.run", side_effect=run):
+                    self.assertEqual(compress_pdf(make_pdf(), "medium"), expected)
+
     def test_invalid_ghostscript_output_is_rejected(self):
         invalid_outputs = {
             "empty": b"",
@@ -74,6 +133,7 @@ class CompressPdfTests(unittest.TestCase):
                     output_path = Path(command[-2].split("=", 1)[1])
                     paths.append(output_path)
                     output_path.write_bytes(output)
+                    return subprocess.CompletedProcess(command, 0, "", "")
 
                 with patch("pdf_engine.compressor.subprocess.run", side_effect=run):
                     with self.assertRaises(PdfEngineError):
@@ -124,6 +184,7 @@ class CompressPdfTests(unittest.TestCase):
                     ])
                     self.assertEqual(kwargs, dict(check=True, capture_output=True, text=True, timeout=GHOSTSCRIPT_TIMEOUT_SECONDS))
                     output_path.write_bytes(expected_output)
+                    return subprocess.CompletedProcess(command, 0, "", "")
 
                 with patch("pdf_engine.compressor.subprocess.run", side_effect=run):
                     self.assertEqual(compress_pdf(source, level), expected_output)
@@ -204,7 +265,7 @@ class CompressPdfTests(unittest.TestCase):
                 self.assertIs(error.exception.__cause__, cause)
 
     def test_missing_output_preserves_error(self):
-        with patch("pdf_engine.compressor.subprocess.run"):
+        with patch("pdf_engine.compressor.subprocess.run", return_value=subprocess.CompletedProcess("gs", 0, "", "")):
             with self.assertRaises(PdfEngineError) as error:
                 compress_pdf(make_pdf(), "medium")
         self.assertEqual(
