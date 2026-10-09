@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_pdf_job_kanban" model="ir.ui.view">
+        <field name="name">pdf.job.kanban</field>
+        <field name="model">pdf.job</field>
+        <field name="arch" type="xml">
+            <kanban default_order="create_date desc, id desc">
+                <field name="name"/>
+                <field name="operation"/>
+                <field name="state"/>
+                <field name="input_attachment_ids"/>
+                <field name="output_attachment_ids"/>
+                <field name="create_date"/>
+
+                <templates>
+                    <t t-name="card">
+                        <div class="position-relative">
+
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <strong class="fw-bold fs-4">
+                                    <field name="name"/>
+                                </strong>
+
+                                <field
+                                    name="state"
+                                    widget="badge"
+                                    decoration-muted="state == 'draft'"
+                                    decoration-info="state == 'processing'"
+                                    decoration-success="state == 'done'"
+                                    decoration-danger="state == 'failed'"
+                                />
+                            </div>
+
+                            <!-- Operation icon -->
+                            <div class="position-absolute top-50 end-0 translate-middle-y pe-3">
+                                <img
+                                    t-if="record.operation.raw_value == 'merge'"
+                                    src="/document_pdf_tools/static/src/img/operations/merge.png"
+                                    style="width: 72px; height: 72px; object-fit: contain;"
+                                />
+                                <img
+                                    t-if="record.operation.raw_value == 'split'"
+                                    src="/document_pdf_tools/static/src/img/operations/split.png"
+                                    style="width: 72px; height: 72px; object-fit: contain;"
+                                />
+                                <img
+                                    t-if="record.operation.raw_value == 'rotate'"
+                                    src="/document_pdf_tools/static/src/img/operations/rotate.png"
+                                    style="width: 72px; height: 72px; object-fit: contain;"
+                                />
+                                <img
+                                    t-if="record.operation.raw_value == 'extract'"
+                                    src="/document_pdf_tools/static/src/img/operations/extract.png"
+                                    style="width: 72px; height: 72px; object-fit: contain;"
+                                />
+                                <img
+                                    t-if="record.operation.raw_value == 'watermark'"
+                                    src="/document_pdf_tools/static/src/img/operations/watermark.png"
+                                    style="width: 72px; height: 72px; object-fit: contain;"
+                                />
+                                <img
+                                    t-if="record.operation.raw_value == 'compress'"
+                                    src="/document_pdf_tools/static/src/img/operations/compress.png"
+                                    style="width: 72px; height: 72px; object-fit: contain;"
+                                />
+                                <img
+                                    t-if="record.operation.raw_value == 'reorder'"
+                                    src="/document_pdf_tools/static/src/img/operations/reorder.png"
+                                    style="width: 72px; height: 72px; object-fit: contain;"
+                                />
+                            </div>
+
+                            <div class="mb-3 fw-semibold text-primary">
+                                <field name="operation"/>
+                            </div>
+
+                            <div class="text-muted">
+                                <div>
+                                    <i class="fa fa-file-pdf-o me-1"/>
+                                    Input PDFs:
+                                    <t t-esc="record.input_attachment_ids.raw_value.length"/>
+                                </div>
+
+                                <div>
+                                    <i class="fa fa-files-o me-1"/>
+                                    Output PDFs:
+                                    <t t-esc="record.output_attachment_ids.raw_value.length"/>
+                                </div>
+
+                                <div class="mt-2">
+                                    <i class="fa fa-calendar me-1"/>
+                                    <field name="create_date"/>
+                                </div>
+                            </div>
+
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+</odoo>

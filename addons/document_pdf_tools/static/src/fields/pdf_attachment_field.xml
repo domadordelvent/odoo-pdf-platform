@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="document_pdf_tools.PdfFileInput"
+       t-inherit="web.FileInput"
+       t-inherit-mode="primary">
+
+        <xpath expr="//span[hasclass('o_file_input')]" position="attributes">
+            <attribute name="t-ref">pdf-dropzone</attribute>
+            <attribute name="class"
+                       add="d-block border rounded p-3 bg-light text-center"
+                       separator=" "/>
+        </xpath>
+
+        <xpath expr="//span[hasclass('o_file_input_trigger')]" position="attributes">
+            <attribute name="class" add="d-block" separator=" "/>
+        </xpath>
+    </t>
+
+
+    
+
+    <t t-name="document_pdf_tools.PdfAttachmentField"
+       t-inherit="web.Many2ManyBinaryField"
+       t-inherit-mode="primary">
+
+
+       
+
+        <xpath expr="//FileInput" position="attributes">
+            <attribute name="acceptedFileExtensions">'.pdf,application/pdf'</attribute>
+        </xpath>
+
+
+        <xpath expr="//div[hasclass('o_attachments')]" position="attributes">
+            <attribute name="class"
+                       add="d-flex flex-wrap gap-2 align-items-start"
+                       separator=" "/>
+        </xpath>
+
+        
+
+        <xpath expr="//FileInput/button" position="replace">
+            <button type="button" class="btn btn-secondary o_attach">
+                <i class="fa fa-upload me-1" aria-hidden="true"/>
+                Drop PDFs here or choose files
+            </button>
+            <div class="text-muted small mt-2">
+                PDF files only. You can select multiple files.
+            </div>
+        </xpath>
+
+    </t>
+
+    <t t-name="document_pdf_tools.PdfAttachmentPreview"
+        t-inherit="web.Many2ManyBinaryField.attachment_preview"
+        t-inherit-mode="extension">
+
+            <xpath expr="//div[@name='attachment']" position="attributes">
+                <attribute name="style">width: 220px !important;</attribute>
+            </xpath>
+
+    </t>
+
+</templates>

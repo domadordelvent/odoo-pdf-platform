@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="document_pdf_tools.PdfOperationSelector">
+        <div class="d-flex flex-wrap gap-3">
+
+            <t t-foreach="operations" t-as="operation" t-key="operation.value">
+
+                <button
+                    type="button"
+                    t-on-click="() => this.selectOperation(operation.value)"
+                    
+                    t-att-disabled="props.readonly"
+                    t-att-class="
+                        value === operation.value
+                            ? 'btn btn-outline-primary border-primary p-3'
+                            : props.readonly
+                                ? 'btn btn-light border p-3 opacity-50'
+                                : 'btn btn-light border p-3'
+                    "
+                    style="width: 100px; min-height: 115px;"
+                >
+                    <div class="mb-2">
+                        <img
+                            t-att-src="iconUrl(operation.icon)"
+                            t-att-alt="operation.label"
+                            style="width: 52px; height: 52px; object-fit: contain;"
+                        />
+                    </div>
+
+                    <strong t-esc="operation.label"/>
+                </button>
+
+            </t>
+
+        </div>
+    </t>
+
+</templates>

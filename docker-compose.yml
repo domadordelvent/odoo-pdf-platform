@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:15
+    container_name: pdf_platform_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pdf_platform_db_data:/var/lib/postgresql/data
+
+  odoo:
+    build: .
+    container_name: pdf_platform_odoo
+    restart: unless-stopped
+    # The official image does not consume a master-password environment variable.
+    # Write a private runtime config; keep the secret out of command arguments.
+    entrypoint:
+      - python3
+      - -c
+      - |
+        import configparser
+        import os
+        import sys
+        import tempfile
+
+        config = configparser.RawConfigParser()
+        config.read(os.environ.get("ODOO_RC", "/etc/odoo/odoo.conf"))
+        config.set("options", "admin_passwd", os.environ.pop("ODOO_MASTER_PASSWORD"))
+        with tempfile.NamedTemporaryFile(mode="w", prefix="odoo-config-", suffix=".conf", delete=False) as output:
+            config.write(output)
+            config_path = output.name
+        os.environ["ODOO_RC"] = config_path
+        os.execv("/entrypoint.sh", ["/entrypoint.sh", *sys.argv[1:], "--config", config_path])
+    depends_on:
+      - db
+    ports:
+      - "127.0.0.1:8072:8069"
+    environment:
+      HOST: db
+      USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      ODOO_MASTER_PASSWORD: ${ODOO_MASTER_PASSWORD:?Set ODOO_MASTER_PASSWORD in .env}
+      PYTHONPATH: /opt
+    volumes:
+      - pdf_platform_odoo_data:/var/lib/odoo
+      - ./addons:/mnt/extra-addons
+      - ./pdf_engine:/opt/pdf_engine
+
+volumes:
+  pdf_platform_db_data:
+  pdf_platform_odoo_data:

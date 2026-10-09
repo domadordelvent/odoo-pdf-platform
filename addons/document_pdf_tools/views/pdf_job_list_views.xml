@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_pdf_job_list" model="ir.ui.view">
+        <field name="name">pdf.job.list</field>
+        <field name="model">pdf.job</field>
+        <field name="arch" type="xml">
+            <list default_order="create_date desc, id desc">
+                <field name="name" string="Job Name" class="fw-semibold"/>
+                <field name="operation" width="150px" class="fw-semibold text-primary"/>
+                <field
+                    name="state"
+                    widget="badge"
+                    decoration-muted="state == 'draft'"
+                    decoration-info="state == 'processing'"
+                    decoration-success="state == 'done'"
+                    decoration-danger="state == 'failed'"
+                    width="120px"
+                />
+                <field name="create_date" string="Created on" width="180px"/>
+            </list>
+        </field>
+    </record>
+</odoo>

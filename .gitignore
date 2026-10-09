@@ -1,0 +1,52 @@
+__pycache__/
+*.pyc
+*.pyo
+
+.vscode/
+.idea/
+
+# Local credentials; keep only the blank example publishable.
+.env
+.env.*
+!.env.example
+.envrc
+
+# Backups, local database exports and editor recovery files.
+backup/
+backups/
+*.dump
+*.dump.gz
+*.sql
+*.sql.gz
+*.sql.bz2
+*.sql.xz
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.backup
+*.bak
+*.BAK
+*.old
+*.swp
+*.swo
+*.swn
+*~
+
+# Local key material and cloud credentials.
+.aws/
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+*.log
+
+*.pdf
+
+.DS_Store
+
+# Demo videos are hosted externally.
+*.mp4

@@ -1,0 +1,32 @@
+from io import BytesIO
+
+from pypdf import PdfWriter
+
+from pdf_engine.validator import validate_pdf
+
+from .exceptions import PageSelectionError
+from .page_parser import parse_page_selection
+
+
+def reorder_pages(pdf_file, order):
+    reader = validate_pdf(pdf_file)
+    writer = PdfWriter()
+
+    total_pages = len(reader.pages)
+    pages = parse_page_selection(order, total_pages)
+
+    expected_pages = list(range(1, total_pages + 1))
+
+    if sorted(pages) != expected_pages:
+        raise PageSelectionError(
+            f"Reorder requires all pages exactly once. "
+            f"Expected pages: 1-{total_pages}"
+        )
+
+    for page_number in pages:
+        writer.add_page(reader.pages[page_number - 1])
+
+    output = BytesIO()
+    writer.write(output)
+
+    return output.getvalue()

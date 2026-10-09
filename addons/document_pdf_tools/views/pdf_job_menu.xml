@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_pdf_jobs" model="ir.actions.act_window">
+        <field name="name">PDF Jobs</field>
+        <field name="res_model">pdf.job</field>
+        <field name="view_mode">kanban,list,form</field>
+    </record>
+
+    <menuitem
+        id="menu_pdf_root"
+        name="PDF Platform"
+    />
+
+    <menuitem
+        id="menu_pdf_jobs"
+        name="Jobs"
+        parent="menu_pdf_root"
+        action="action_pdf_jobs"
+    />
+</odoo>

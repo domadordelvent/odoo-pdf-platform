@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Global: additional group rules cannot widen ordinary users' access. -->
+    <record id="pdf_job_owner_rule" model="ir.rule">
+        <field name="name">PDF jobs: owner or system administrator</field>
+        <field name="model_id" ref="model_pdf_job"/>
+        <field name="domain_force">[(1, '=', 1)] if user.has_group('base.group_system') else [('create_uid', '=', user.id)]</field>
+    </record>
+</odoo>
